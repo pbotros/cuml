@@ -43,7 +43,8 @@ void sgdFit(raft::handle_t& handle,
             float l1_ratio,
             bool shuffle,
             float tol,
-            int n_iter_no_change)
+            int n_iter_no_change,
+            float* sample_weights)
 {
   ML::loss_funct loss_funct = ML::loss_funct::SQRD_LOSS;
   if (loss == 0) {
@@ -103,6 +104,7 @@ void sgdFit(raft::handle_t& handle,
          shuffle,
          tol,
          n_iter_no_change,
+         sample_weights,
          handle.get_stream());
 }
 
@@ -125,9 +127,10 @@ void sgdFit(raft::handle_t& handle,
             double l1_ratio,
             bool shuffle,
             double tol,
-            int n_iter_no_change)
+            int n_iter_no_change,
+            double *sample_weights)
 {
-  ML::loss_funct loss_funct = ML::loss_funct::SQRD_LOSS;
+ML::loss_funct loss_funct = ML::loss_funct::SQRD_LOSS;
   if (loss == 0) {
     loss_funct = ML::loss_funct::SQRD_LOSS;
   } else if (loss == 1) {
@@ -184,6 +187,7 @@ void sgdFit(raft::handle_t& handle,
          shuffle,
          tol,
          n_iter_no_change,
+         sample_weights,
          handle.get_stream());
 }
 

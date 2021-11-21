@@ -42,7 +42,8 @@ void sgdFit(raft::handle_t& handle,
             float l1_ratio,
             bool shuffle,
             float tol,
-            int n_iter_no_change);
+            int n_iter_no_change,
+            float* sample_weights);
 
 void sgdFit(raft::handle_t& handle,
             double* input,
@@ -63,7 +64,8 @@ void sgdFit(raft::handle_t& handle,
             double l1_ratio,
             bool shuffle,
             double tol,
-            int n_iter_no_change);
+            int n_iter_no_change,
+            double* sample_weights);
 
 void sgdPredict(raft::handle_t& handle,
                 const float* input,

@@ -58,7 +58,8 @@ cdef extern from "cuml/solvers/solver.hpp" namespace "ML::Solver":
                      float l1_ratio,
                      bool shuffle,
                      float tol,
-                     int n_iter_no_change) except +
+                     int n_iter_no_change,
+                     float *sample_weights) except +
 
     cdef void sgdFit(handle_t& handle,
                      double *input,
@@ -79,7 +80,8 @@ cdef extern from "cuml/solvers/solver.hpp" namespace "ML::Solver":
                      double l1_ratio,
                      bool shuffle,
                      double tol,
-                     int n_iter_no_change) except +
+                     int n_iter_no_change,
+                     double *sample_weights) except +
 
     cdef void sgdPredict(handle_t& handle,
                          const float *input,
@@ -205,6 +207,9 @@ class SGD(Base,
         The old learning rate is generally divide by 5
     n_iter_no_change : int (default = 5)
         the number of epochs to train without any imporvement in the model
+    class_weight : dict, {class_label: weight} (default = None)
+        Preset for the class_weight fit parameter.
+        Weights associated with classes. If not given, all classes are supposed to have weight one.
     handle : cuml.Handle
         Specifies the cuml.handle that holds internal CUDA state for
         computations in this model. Most importantly, this specifies the CUDA
@@ -230,7 +235,7 @@ class SGD(Base,
                  l1_ratio=0.15, fit_intercept=True, epochs=1000, tol=1e-3,
                  shuffle=True, learning_rate='constant', eta0=0.001,
                  power_t=0.5, batch_size=32, n_iter_no_change=5, handle=None,
-                 output_type=None, verbose=False):
+                 class_weight=None, output_type=None, verbose=False):
 
         if loss in ['hinge', 'log', 'squared_loss']:
             self.loss = loss
@@ -255,6 +260,7 @@ class SGD(Base,
         self.shuffle = shuffle
         self.eta0 = eta0
         self.power_t = power_t
+        self.class_weight = class_weight
 
         if learning_rate in ['optimal', 'constant', 'invscaling', 'adaptive']:
             self.learning_rate = learning_rate
@@ -327,10 +333,24 @@ class SGD(Base,
                                 convert_to_dtype=(self.dtype if convert_dtype
                                                   else None),
                                 check_rows=n_rows, check_cols=1)
+        # TODO: compute sample weights here based on class_weight constructor and `y`
+        # TODO: pass sample weights into fxn below
 
         _estimator_type = getattr(self, '_estimator_type', None)
+
+        cdef uintptr_t sample_weights_ptr = None
         if _estimator_type == "classifier":
             self.classes_ = cp.unique(y_m)
+
+            if self.class_weight is not None:
+                if not isinstance(self.class_weight, dict):
+                    raise ValueError(
+                        "class_weight must be dict or None, got: %r" % class_weight
+                    )
+                sample_weights = CumlArray.zeros(n_rows, dtype=np.float64)
+                for c in self.class_weight:
+                    sample_weights[y_m == c] = self.class_weight[c]
+            sample_weights_ptr = sample_weights.ptr
 
         cdef uintptr_t X_ptr = X_m.ptr
         cdef uintptr_t y_ptr = y_m.ptr
@@ -365,7 +385,8 @@ class SGD(Base,
                    <float>self.l1_ratio,
                    <bool>self.shuffle,
                    <float>self.tol,
-                   <int>self.n_iter_no_change)
+                   <int>self.n_iter_no_change,
+                   <float*>sample_weights_ptr)
 
             self.intercept_ = c_intercept1
         else:
@@ -388,7 +409,8 @@ class SGD(Base,
                    <double>self.l1_ratio,
                    <bool>self.shuffle,
                    <double>self.tol,
-                   <int>self.n_iter_no_change)
+                   <int>self.n_iter_no_change,
+                   <double*>sample_weights_ptr)
 
             self.intercept_ = c_intercept2
 

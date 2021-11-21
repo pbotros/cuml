@@ -112,6 +112,7 @@ void sgdFit(const raft::handle_t& handle,
             bool shuffle,
             math_t tol,
             int n_iter_no_change,
+            math_t* sample_weights,
             cudaStream_t stream)
 {
   ASSERT(n_cols > 0, "Parameter n_cols: number of columns cannot be less than one");
@@ -145,6 +146,8 @@ void sgdFit(const raft::handle_t& handle,
   rmm::device_uvector<int> indices(batch_size, stream);
   rmm::device_uvector<math_t> input_batch(batch_size * n_cols, stream);
   rmm::device_uvector<math_t> labels_batch(batch_size, stream);
+  rmm::device_uvector<math_t> sample_weights_batch(batch_size, stream);
+  rmm::device_uvector<math_t> learning_rates_batch(batch_size, stream);
   rmm::device_scalar<math_t> loss_value(stream);
 
   math_t prev_loss_value = math_t(0);
@@ -227,7 +230,13 @@ void sgdFit(const raft::handle_t& handle,
       if (lr_type != ML::lr_type::ADAPTIVE)
         learning_rate = calLearningRate(lr_type, eta0, power_t, alpha, t);
 
+      // TODO: learning_rate * (class_weight * labels < if class weight binary) here!
+      // TODO: also to exactly match SGD classifier, batch size should be 1
       raft::linalg::scalarMultiply(grads.data(), grads.data(), learning_rate, n_cols, stream);
+      if (sample_weights != nullptr) {
+        raft::matrix::copyRows(sample_weights, n_rows, 1, sample_weights_batch.data(), indices.data(), cbs, stream);
+        raft::linalg::eltwiseMultiply(grads.data(), grads.data(), sample_weights_batch.data(), cbs, stream)
+      }
       raft::linalg::subtract(coef, coef, grads.data(), n_cols, stream);
 
       j = j + cbs;
